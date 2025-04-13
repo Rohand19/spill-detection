@@ -1,0 +1,8 @@
+# Train/val/test sets
+path: /Users/rohandivakar/Desktop/Spill Detection/data  # Absolute path to data directory
+train: train  # Training images relative to 'path'
+val: val  # Validation images relative to 'path'
+
+# Classes
+names:
+  0: spill  # Class name for ID 0

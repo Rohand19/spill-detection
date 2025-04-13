@@ -1,0 +1,19 @@
+model_size: m  # YOLOv8m
+lightweight_model_size: n  # YOLOv8n for lightweight model
+dataset_yaml: configs/dataset.yaml
+epochs: 100
+lightweight_epochs: 100
+img_size: 640
+batch_size: 16
+num_workers: 20  
+patience: 20
+device: 'cpu'  
+project: spill_detect
+experiment_name: spill_detection
+optimizer: AdamW
+learning_rate: 0.001
+weight_decay: 0.0005
+output_dir: models
+use_primary_for_lightweight: true  # Whether to derive lightweight from primary or train separately
+prune_ratio: 0.3  # Ratio for model pruning (if applicable)
+validation_split: 0.2 

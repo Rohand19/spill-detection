@@ -1,0 +1,124 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# Model weights and checkpoints
+*.pt
+*.pth
+*.weights
+*.onnx
+*.trt
+*.engine
+*.tflite
+*.mlmodel
+
+# Datasets and images
+data/train/
+data/val/
+data/test/
+Dataset/
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.tif
+*.tiff
+*.webp
+*.mp4
+*.mov
+*.avi
+
+# YOLOv8 specific
+runs/
+*.yaml.scratch
+*.cache
+spill_detect/spill_detection*/
+*_openvino_model/
+
+# Evaluation and inference outputs
+evaluation_results/
+inference_results/
+predictions/
+visualizations/
+comparison/
+
+# Notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+.spyderproject
+.spyproject
+.ropeproject
+
+# Logs and temporary files
+*.log
+logs/
+tmp/
+temp/
+tensorboard/
+
+# Weights and Biases
+wandb/
+
+# MacOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Build artifacts
+*.o
+*.a
+*.lib
+*.dll
+*.so
+*.dylib
+
+# Distribution artifacts
+*.tar.gz
+*.zip
+*.7z
+*.rar
+
+# Exclude the configuration files that should be tracked
+!configs/*.yaml
+
+# Keep empty directories for data structure
+!data/.gitkeep
+!models/.gitkeep
