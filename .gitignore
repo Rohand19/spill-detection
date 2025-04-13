@@ -26,15 +26,6 @@ venv/
 ENV/
 env/
 
-# Model weights and checkpoints
-*.pt
-*.pth
-*.weights
-*.onnx
-*.trt
-*.engine
-*.tflite
-*.mlmodel
 
 # Datasets and images
 data/train/
