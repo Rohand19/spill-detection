@@ -1,6 +1,6 @@
 # Spill Detection System
 
-This project implements a computer vision system for detecting liquid spills on floors using YOLOv8 object detection. The system includes both a primary model (≤ 75MB) and a lightweight model (≤ 10MB) for different deployment scenarios.
+This project implements a computer vision system for detecting liquid spills on floors using YOLOv8 object detection. The system includes both a primary model and a lightweight model for different deployment scenarios.
 
 ## Project Structure
 
