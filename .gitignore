@@ -51,8 +51,6 @@ spill_detect/spill_detection*/
 *_openvino_model/
 
 # Evaluation and inference outputs
-evaluation_results/
-inference_results/
 predictions/
 visualizations/
 comparison/
