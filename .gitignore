@@ -111,3 +111,5 @@ $RECYCLE.BIN/
 # Keep empty directories for data structure
 !data/.gitkeep
 !models/.gitkeep
+!evaluation_results/.gitkeep
+!inference_results/.gitkeep
