@@ -45,7 +45,7 @@ def run_inference(model_path, image_path, conf_threshold=0.25, img_size=640):
 def visualize_results(image, results, output_path=None, show=True):
     """Visualize detection results on the image."""
     # Create figure and axes
-    plt.figure(figsize=(12, 8))
+    # plt.figure(figsize=(12, 8))
     
     # Display image
     plt.imshow(image)
@@ -67,99 +67,6 @@ def visualize_results(image, results, output_path=None, show=True):
         plt.show()
     
     plt.close()
-
-
-def process_video(model_path, video_path, output_path=None, conf_threshold=0.25, img_size=640, 
-                 fps=None, show=False, save_frames=False, frames_dir=None):
-    """Process a video and apply spill detection to each frame."""
-    # Load model
-    model = YOLO(model_path)
-    
-    # Open video
-    cap = cv2.VideoCapture(video_path)
-    if not cap.isOpened():
-        print(f"Error: Could not open video {video_path}")
-        return
-    
-    # Get video properties
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    video_fps = cap.get(cv2.CAP_PROP_FPS)
-    if fps is None:
-        fps = video_fps
-    
-    # Create output video writer if output path is specified
-    writer = None
-    if output_path:
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Use appropriate codec
-        writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-    
-    # Create frames directory if saving frames
-    if save_frames and frames_dir:
-        os.makedirs(frames_dir, exist_ok=True)
-    
-    # Process each frame
-    frame_count = 0
-    total_inference_time = 0
-    
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-        
-        # Convert to RGB for model
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        
-        # Run inference
-        start_time = time.time()
-        results = model.predict(frame_rgb, conf=conf_threshold, imgsz=img_size)[0]
-        inference_time = time.time() - start_time
-        total_inference_time += inference_time
-        
-        # Draw bounding boxes on frame
-        annotated_frame = results.plot()
-        
-        # Save frame if requested
-        if save_frames and frames_dir:
-            cv2.imwrite(f"{frames_dir}/frame_{frame_count:04d}.jpg", annotated_frame)
-        
-        # Write to output video
-        if writer:
-            writer.write(annotated_frame)
-        
-        # Display frame if show is True
-        if show:
-            cv2.imshow("Spill Detection", annotated_frame)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-        
-        frame_count += 1
-    
-    # Release resources
-    cap.release()
-    if writer:
-        writer.release()
-    if show:
-        cv2.destroyAllWindows()
-    
-    # Calculate metrics
-    avg_inference_time = total_inference_time / frame_count if frame_count > 0 else 0
-    fps_achieved = 1 / avg_inference_time if avg_inference_time > 0 else 0
-    
-    print(f"\nVideo Processing Summary:")
-    print(f"  Processed frames: {frame_count}")
-    print(f"  Average inference time: {avg_inference_time:.4f} seconds per frame")
-    print(f"  Effective FPS: {fps_achieved:.2f}")
-    
-    if output_path:
-        print(f"  Output video saved to: {output_path}")
-    
-    return {
-        'frame_count': frame_count,
-        'avg_inference_time': avg_inference_time,
-        'fps': fps_achieved
-    }
 
 
 def batch_inference(model_path, image_dir, output_dir, conf_threshold=0.25, img_size=640, limit=None):
@@ -229,8 +136,6 @@ def main():
                         help="Path to the model weights")
     parser.add_argument("--image", type=str, default=None,
                         help="Path to the input image")
-    parser.add_argument("--video", type=str, default=None,
-                        help="Path to the input video")
     parser.add_argument("--image-dir", type=str, default=None,
                         help="Path to directory of images for batch processing")
     parser.add_argument("--output-dir", type=str, default="inference_results",
@@ -262,22 +167,6 @@ def main():
         visualize_results(img_rgb, results, output_path, args.show)
         
         print(f"Result saved to {output_path}")
-    
-    # Process video
-    elif args.video:
-        print(f"\n{'='*40}\nProcessing Video\n{'='*40}")
-        output_path = Path(args.output_dir) / f"{Path(args.video).stem}_result.mp4"
-        frames_dir = Path(args.output_dir) / f"{Path(args.video).stem}_frames"
-        
-        process_video(
-            args.model, 
-            args.video, 
-            output_path, 
-            args.conf, 
-            args.img_size,
-            show=args.show,
-            save_frames=False
-        )
     
     # Batch process images
     elif args.image_dir:

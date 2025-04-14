@@ -5,6 +5,7 @@ This script handles data preparation tasks such as:
 1. Checking and verifying annotations
 2. Creating train/validation splits
 3. Converting data to appropriate format for YOLOv8
+4. Data augmentation for improved model training
 """
 
 import os
@@ -18,6 +19,9 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from sklearn.model_selection import train_test_split
 import random
+import albumentations as A
+from tqdm import tqdm
+import uuid
 
 
 def load_config(config_path):
@@ -283,53 +287,194 @@ def verify_dataset(data_root, annotations_dir='annotations'):
     return issues
 
 
+def augment_dataset(train_dir, output_dir=None, augmentation_factor=3, seed=42):
+    """
+    Augment training dataset with various transformations.
+    
+    Args:
+        train_dir: Directory containing training data (images and annotations)
+        output_dir: Directory to save augmented data (default: same as train_dir)
+        augmentation_factor: Number of augmented copies to create per original image
+        seed: Random seed for reproducibility
+    
+    Returns:
+        Dictionary with statistics about the augmentation process
+    """
+    random.seed(seed)
+    np.random.seed(seed)
+    
+    if output_dir is None:
+        output_dir = train_dir
+    else:
+        os.makedirs(output_dir, exist_ok=True)
+    
+    train_path = Path(train_dir)
+    output_path = Path(output_dir)
+    
+    # Get all image files in training directory
+    image_files = []
+    for ext in ['.jpg', '.jpeg', '.png']:
+        image_files.extend(list(train_path.glob(f'*{ext}')))
+    
+    print(f"Found {len(image_files)} original training images")
+    
+    # Define augmentation pipeline
+    # These transformations preserve bounding box coordinates
+    augmentation_pipeline = A.Compose([
+        # Spatial augmentations
+        A.HorizontalFlip(p=0.5),
+        A.VerticalFlip(p=0.3),
+        A.RandomRotate90(p=0.5),
+        A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.2, rotate_limit=15, p=0.7),
+        
+        # Visual augmentations
+        A.OneOf([
+            A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2),
+            A.RandomGamma(gamma_limit=(80, 120)),
+            A.HueSaturationValue(hue_shift_limit=5, sat_shift_limit=20, val_shift_limit=10),
+        ], p=0.8),
+        
+        # Noise and quality
+        A.OneOf([
+            A.GaussNoise(var_limit=(10, 50)),
+            A.GaussianBlur(blur_limit=3),
+            A.ISONoise(color_shift=(0.01, 0.05), intensity=(0.1, 0.5)),
+        ], p=0.5),
+        
+        # Weather and environmental simulations (helpful for outdoor spill detection)
+        A.OneOf([
+            A.RandomRain(slant_lower=-10, slant_upper=10, drop_length=20, drop_width=1, drop_color=(200, 200, 200), p=0.2),
+            A.RandomShadow(shadow_roi=(0, 0.5, 1, 1), p=0.2),
+            A.RandomFog(fog_coef_lower=0.1, fog_coef_upper=0.2, alpha_coef=0.1, p=0.1),
+        ], p=0.3),
+    ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels']))
+    
+    # Counter for augmented images
+    augmented_count = 0
+    
+    # Process each image
+    for img_path in tqdm(image_files, desc="Augmenting images"):
+        # Load image
+        img = cv2.imread(str(img_path))
+        if img is None:
+            print(f"Warning: Could not load {img_path}, skipping...")
+            continue
+        
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        
+        # Load corresponding annotation
+        anno_path = train_path / f"{img_path.stem}.txt"
+        if not anno_path.exists():
+            print(f"Warning: No annotation found for {img_path.name}, skipping...")
+            continue
+        
+        # Parse annotations
+        bboxes = []
+        class_labels = []
+        with open(anno_path, 'r') as f:
+            for line in f:
+                parts = line.strip().split()
+                if len(parts) >= 5:
+                    class_id = int(parts[0])
+                    x_center, y_center, width, height = map(float, parts[1:5])
+                    bboxes.append([x_center, y_center, width, height])
+                    class_labels.append(class_id)
+        
+        # Perform augmentation multiple times
+        for i in range(augmentation_factor):
+            # Generate a unique ID for the augmented image
+            unique_id = f"{img_path.stem}_aug_{uuid.uuid4().hex[:8]}"
+            
+            # Apply augmentation
+            augmented = augmentation_pipeline(
+                image=img,
+                bboxes=bboxes,
+                class_labels=class_labels
+            )
+            
+            augmented_img = augmented['image']
+            augmented_bboxes = augmented['bboxes']
+            augmented_class_labels = augmented['class_labels']
+            
+            # Save augmented image
+            output_img_path = output_path / f"{unique_id}{img_path.suffix}"
+            cv2.imwrite(str(output_img_path), cv2.cvtColor(augmented_img, cv2.COLOR_RGB2BGR))
+            
+            # Save augmented annotations
+            output_anno_path = output_path / f"{unique_id}.txt"
+            with open(output_anno_path, 'w') as f:
+                for bbox, cls_id in zip(augmented_bboxes, augmented_class_labels):
+                    x_center, y_center, width, height = bbox
+                    f.write(f"{cls_id} {x_center} {y_center} {width} {height}\n")
+            
+            augmented_count += 1
+    
+    print(f"Data augmentation completed!")
+    print(f"  Original images: {len(image_files)}")
+    print(f"  Augmented images: {augmented_count}")
+    print(f"  Total images after augmentation: {len(image_files) + augmented_count}")
+    
+    return {
+        'original_count': len(image_files),
+        'augmented_count': augmented_count,
+        'total_count': len(image_files) + augmented_count
+    }
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Prepare data for spill detection")
-    parser.add_argument("--data-root", type=str, default=".",
-                        help="Root directory containing the dataset")
-    parser.add_argument("--output-root", type=str, default="data",
-                        help="Output directory for processed data")
-    parser.add_argument("--annotations-dir", type=str, default="data/annotations",
-                        help="Directory containing annotation files")
-    parser.add_argument("--val-split", type=float, default=0.2,
-                        help="Validation split ratio (0-1)")
-    parser.add_argument("--visualize", action="store_true",
-                        help="Visualize sample annotations")
-    parser.add_argument("--num-vis-samples", type=int, default=5,
-                        help="Number of sample images to visualize")
-    parser.add_argument("--create-splits", action="store_true",
-                        help="Create training/validation splits")
-    parser.add_argument("--verify", action="store_true",
-                        help="Verify dataset completeness")
-    parser.add_argument("--analyze", action="store_true",
-                        help="Analyze data distribution")
+    """Main entry point for data preparation."""
+    parser = argparse.ArgumentParser(description="Data preparation for spill detection")
+    parser.add_argument("--data-root", type=str, default=".", help="Root directory containing the dataset")
+    parser.add_argument("--annotations-dir", type=str, default="data/annotations", help="Directory containing annotation files")
+    parser.add_argument("--output-root", type=str, default="data", help="Output directory for processed data")
+    parser.add_argument("--verify", action="store_true", help="Verify dataset completeness")
+    parser.add_argument("--analyze", action="store_true", help="Analyze data distribution")
+    parser.add_argument("--visualize", action="store_true", help="Visualize sample annotations")
+    parser.add_argument("--num-vis-samples", type=int, default=5, help="Number of samples to visualize")
+    parser.add_argument("--create-splits", action="store_true", help="Create train/val splits")
+    parser.add_argument("--val-split", type=float, default=0.2, help="Validation split ratio")
+    parser.add_argument("--augment", action="store_true", help="Perform data augmentation")
+    parser.add_argument("--augmentation-factor", type=int, default=3, help="Number of augmented copies per original image")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     
     args = parser.parse_args()
     
-    # Verify dataset
-    if args.verify:
-        print(f"\n{'='*40}\nVerifying Dataset\n{'='*40}")
-        issues = verify_dataset(args.data_root, args.annotations_dir)
+    # Make output directories
+    os.makedirs(args.output_root, exist_ok=True)
+    vis_dir = Path(args.output_root) / "visualizations"
+    os.makedirs(vis_dir, exist_ok=True)
     
-    # Analyze data distribution
+    # Verify dataset if requested
+    if args.verify:
+        verify_dataset(args.data_root, args.annotations_dir)
+    
+    # Analyze data if requested
     if args.analyze:
-        print(f"\n{'='*40}\nAnalyzing Data Distribution\n{'='*40}")
         stats = analyze_data_distribution(args.data_root, args.annotations_dir)
-        
         print("\nDataset Statistics:")
         for key, value in stats.items():
             print(f"  {key}: {value}")
     
-    # Visualize sample annotations
+    # Visualize sample annotations if requested
     if args.visualize:
-        print(f"\n{'='*40}\nVisualizing Sample Annotations\n{'='*40}")
-        vis_dir = Path(args.output_root) / 'visualizations'
-        visualize_sample_annotations(args.data_root, vis_dir, args.annotations_dir, args.num_vis_samples)
+        visualize_sample_annotations(args.data_root, str(vis_dir), args.annotations_dir, args.num_vis_samples)
     
-    # Create dataset splits
+    # Create dataset splits if requested
+    split_info = None
     if args.create_splits:
-        print(f"\n{'='*40}\nCreating Dataset Splits\n{'='*40}")
-        split_info = create_dataset_splits(args.data_root, args.output_root, args.annotations_dir, args.val_split)
+        split_info = create_dataset_splits(args.data_root, args.output_root, args.annotations_dir, args.val_split, args.seed)
+    
+    # Perform data augmentation if requested
+    if args.augment:
+        if split_info is None:
+            train_dir = Path(args.output_root) / 'train'
+        else:
+            train_dir = split_info['train_dir']
+            
+        if not train_dir.exists():
+            print(f"Training directory {train_dir} not found. Please run with --create-splits first.")
+        else:
+            augment_dataset(train_dir, output_dir=train_dir, augmentation_factor=args.augmentation_factor, seed=args.seed)
 
 
 if __name__ == "__main__":

@@ -22,7 +22,7 @@ This project implements a computer vision system for detecting liquid spills on 
 │   └── inference.py          # Inference script for new images/videos
 ├── run.py                    # Main pipeline execution script
 ├── requirements.txt          # Python dependencies
-├── PROJECT_REPORT.md         # Detailed project report
+├── Project Report.pdf         # Detailed project report
 └── README.md                 # This file
 ```
 
@@ -88,6 +88,31 @@ If needed, you can create/regenerate the train-validation splits:
 python -m spill_detect.prepare_data --create-splits --val-split 0.2 --data-root . --annotations-dir data/annotations
 ```
 
+### Data Augmentation
+
+To improve model robustness and performance, you can augment the training dataset with various transformations:
+
+```bash
+python -m spill_detect.prepare_data --augment --augmentation-factor 3 --data-root . --annotations-dir data/annotations
+```
+
+This will:
+- Create multiple augmented variants of each training image
+- Preserve and properly transform bounding box annotations
+- Apply a diverse set of transformations including:
+  - Spatial transformations (flips, rotations, scaling)
+  - Visual adjustments (brightness, contrast, hue, saturation)
+  - Noise and blur effects
+  - Environmental simulations (rain, fog, shadows)
+
+The augmentation factor (default: 3) controls how many augmented copies are created per original image. Increasing this value can help with small datasets but requires more storage and training time.
+
+You can also chain multiple operations together:
+
+```bash
+python -m spill_detect.prepare_data --create-splits --val-split 0.2 --augment --augmentation-factor 5 --data-root . --annotations-dir data/annotations
+```
+
 ## Training
 
 ### Training the Primary Model
@@ -144,13 +169,6 @@ python -m spill_detect.inference --model models/lightweight_model.pt --image pat
 python -m spill_detect.inference --model models/primary_model.pt --image-dir path/to/images/
 ```
 
-### Processing Video
-
-```bash
-python -m spill_detect.inference --model models/primary_model.pt --video path/to/video.mp4
-```
-
-## Technical Approach
 
 ### Model Architecture
 
@@ -161,7 +179,7 @@ python -m spill_detect.inference --model models/primary_model.pt --video path/to
 
 - Images are resized to 640×640 pixels for the primary model and 416×416 for the lightweight model.
 - Annotations are in YOLO format: `<class> <x_center> <y_center> <width> <height>` with normalized coordinates.
-- Data augmentations include random flips, rotations, contrast adjustments, and brightness variations to improve model generalization.
+- Data augmentations include horizontal and vertical flips, rotations, contrast/brightness adjustments, noise addition, blur, and environmental simulations like rain and fog to improve model generalization and robustness.
 
 ### Training Strategy
 
@@ -172,12 +190,29 @@ python -m spill_detect.inference --model models/primary_model.pt --video path/to
 
 ## Performance Metrics
 
-Models are evaluated using:
-- Precision
-- Recall
-- mAP50 (mean Average Precision at IoU=0.5)
-- mAP50-95 (mean Average Precision across IoU thresholds from 0.5 to 0.95)
-- Inference time
-- Model size
+The models were evaluated using standard object detection metrics to assess their accuracy, speed, and resource requirements.
+
+### Evaluation Results
+
+The following metrics were obtained after training with the augmented dataset:
+
+| Metric | Primary Model (YOLOv8m) | Lightweight Model (YOLOv8n) | % Difference |
+|--------|--------------------------|------------------------------|--------------|
+| Precision | 0.976 | 0.980 | +0.4% |
+| Recall | 0.750 | 1.000 | +33.3% |
+| mAP50 | 0.856 | 0.973 | +13.7% |
+| mAP50-95 | 0.689 | 0.857 | +24.4% |
+| Inference Time (s) | 0.163 | 0.043 | -73.7% |
+| Model Size (MB) | 49.58 | 5.92 | -88.1% |
+
+Conclusion: The lightweight model outperforms the primary model in terms of inference speed and model size, making it more suitable for deployment in resource-constrained environments.
+
+### Performance Visualization
+
+![Performance Comparison](evaluation_results/comparison/performance_comparison.png)
+
+### Efficiency Comparison
+
+![Efficiency Comparison](evaluation_results/comparison/efficiency_comparison.png)
 
 

@@ -34,7 +34,8 @@ def load_config(config_path):
         return yaml.safe_load(file)
 
 
-def prepare_data(data_root, annotations_dir, output_root, val_split=0.2, visualize=True, num_vis_samples=5):
+def prepare_data(data_root, annotations_dir, output_root, val_split=0.2, visualize=True, num_vis_samples=5,
+                augment=False, augmentation_factor=3, seed=42):
     """Run data preparation steps."""
     print(f"\n{'='*80}\nStep 1: Data Preparation\n{'='*80}")
     
@@ -51,8 +52,14 @@ def prepare_data(data_root, annotations_dir, output_root, val_split=0.2, visuali
     
     # Create dataset splits
     print("\nCreating dataset splits...")
-    cmd = f"python -m spill_detect.prepare_data --create-splits --val-split {val_split} --data-root {data_root} --annotations-dir {annotations_dir} --output-root {output_root}"
+    cmd = f"python -m spill_detect.prepare_data --create-splits --val-split {val_split} --seed {seed} --data-root {data_root} --annotations-dir {annotations_dir} --output-root {output_root}"
     run_command(cmd)
+    
+    # Perform data augmentation if requested
+    if augment:
+        print("\nPerforming data augmentation...")
+        cmd = f"python -m spill_detect.prepare_data --augment --augmentation-factor {augmentation_factor} --seed {seed} --data-root {data_root} --annotations-dir {annotations_dir} --output-root {output_root}"
+        run_command(cmd)
 
 
 def train_models(config_path, skip_primary=False, skip_lightweight=False, primary_weights=None):
@@ -129,6 +136,12 @@ def main():
                         help="Directory containing test images for inference")
     parser.add_argument("--sample-image", type=str, default=None,
                         help="Sample image path for visualization during evaluation")
+    parser.add_argument("--augment-data", action="store_true",
+                        help="Perform data augmentation during data preparation")
+    parser.add_argument("--augmentation-factor", type=int, default=3,
+                        help="Number of augmented copies per original image")
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Random seed for reproducibility")
     
     args = parser.parse_args()
     
@@ -145,7 +158,15 @@ def main():
     
     # Step 1: Data Preparation
     if not args.skip_data_prep:
-        prepare_data(args.data_root, args.annotations_dir, args.output_root)
+        prepare_data(
+            args.data_root, 
+            args.annotations_dir, 
+            args.output_root,
+            val_split=0.2,
+            augment=args.augment_data,
+            augmentation_factor=args.augmentation_factor,
+            seed=args.seed
+        )
     
     # Step 2: Model Training
     if not args.skip_training:
